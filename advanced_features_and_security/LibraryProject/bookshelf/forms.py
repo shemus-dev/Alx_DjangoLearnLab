@@ -1,7 +1,9 @@
 from django import forms
 from .models import Book
 
+
 class BookForm(forms.ModelForm):
     class Meta:
         model = Book
-        fields = ['title', 'author']
+        # Exclude created_by since it should be set by the view (request.user)
+        exclude = ('created_by',)
