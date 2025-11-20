@@ -3,8 +3,10 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from .models import CustomUser, Book, Author, Library, Librarian
 
+
 @admin.register(CustomUser)
 class CustomUserAdmin(UserAdmin):
+    model = CustomUser
     # Basic list display
     list_display = ('username', 'email', 'role', 'membership_type', 'is_staff')
     
@@ -41,6 +43,7 @@ class CustomUserAdmin(UserAdmin):
     )
 
 # Register your other models normally
+admin.site.register(CustomUser, CustomUserAdmin)
 admin.site.register(Book)
 admin.site.register(Author)
 admin.site.register(Library)
