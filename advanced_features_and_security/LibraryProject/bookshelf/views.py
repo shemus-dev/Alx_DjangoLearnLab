@@ -8,7 +8,7 @@ from django.contrib.auth.decorators import user_passes_test, login_required
 from django.contrib.auth.decorators import permission_required
 from django.contrib.auth import get_user_model
 from .forms import BookForm
-
+from django.utils.decorators import method_decorator
 # --- ADD MISSING HELPER FUNCTION ---
 def redirect_to_dashboard(user):
     """Helper function to redirect users based on their role"""
@@ -94,7 +94,7 @@ def logout_view(request):
 
 # ---------------- Book Management ----------------
 # CHANGED: relationship_app → bookshelf
-@permission_required('bookshelf.can_add_book', raise_exception=True)
+@permission_required('bookshelf.can_create_book"', raise_exception=True)
 def add_book(request):
     if request.method == 'POST':
         form = BookForm(request.POST)
@@ -141,13 +141,16 @@ def delete_book(request, pk):
 def list_books(request):
     books = Book.objects.all()
     
-    # CHANGED: relationship_app → bookshelf
+    # REASON: Filter out premium books if user doesn't have premium permission
+    if not request.user.has_perm('bookshelf.can_view_premium_books'):
+        books = books.filter(is_premium=False)
     return render(request, 'bookshelf/list_books.html', {'books': books})
 
+# REASON: Class-based views need method_decorator for permission checks
+@method_decorator(login_required, name='dispatch')
+@method_decorator(permission_required('bookshelf.can_view', raise_exception=True), name='dispatch')
 class LibraryDetailView(DetailView):
     model = Library
-    
-    # CHANGED: relationship_app → bookshelf
     template_name = 'bookshelf/library_detail.html'
     context_object_name = 'library'
 
@@ -163,10 +166,16 @@ def is_member(user):
 
 # ---------------- Role-Based Views ----------------
 @user_passes_test(is_admin)
+@permission_required('bookshelf.can_manage_content', raise_exception=True)
 @login_required
 def admin_view(request):
-    # CHANGED: relationship_app → bookshelf
-    return render(request, 'bookshelf/admin_view.html')
+    total_books = Book.objects.count()
+    premium_books = Book.objects.filter(is_premium=True).count()
+    context = {
+        'total_books': total_books,
+        'premium_books': premium_books,
+    }
+    return render(request, 'bookshelf/admin_view.html', context)
 
 @user_passes_test(is_librarian)
 @login_required
@@ -178,7 +187,13 @@ def librarian_view(request):
 @login_required
 def member_view(request):
     # CHANGED: relationship_app → bookshelf
-    return render(request, 'bookshelf/member_view.html')
+    if request.user.has_perm('bookshelf.can_view_premium_books'):
+        books = Book.objects.all()
+    else:
+        books = Book.filter(is_premium=False)
+
+    context = {'books': books}
+    return render(request, 'bookshelf/member_view.html', context)
 
 # ADD THIS: User Profile View
 @login_required

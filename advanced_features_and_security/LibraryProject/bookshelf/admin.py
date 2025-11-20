@@ -43,7 +43,6 @@ class CustomUserAdmin(UserAdmin):
     )
 
 # Register your other models normally
-admin.site.register(CustomUser, CustomUserAdmin)
 admin.site.register(Book)
 admin.site.register(Author)
 admin.site.register(Library)

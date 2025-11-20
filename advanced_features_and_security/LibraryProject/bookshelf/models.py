@@ -86,6 +86,7 @@ class CustomUser(AbstractUser):
         permissions = [
             ("can_access_premium", "Can access premium features"),
             ("can_manage_content", "Can manage all content"),
+            ("can_manage_users", "Can manage users"),
         ]
 
     
@@ -106,20 +107,19 @@ class Book(models.Model):
 
     class Meta:
         permissions = [
+            ("can_create_book", "Can create book"),
+            ("can_view", "Can view books"),
+            ("can_edit_book", "Can edit book"),
+            ("can_delete_book", "Can delete book"),
+
             ("can_view_premium_books", "Can view premium books"),
             ("can_publish_book", "Can publish new books"),
             ("can_delete_any_book", "Can delete any book"),
         ]
-
     def __str__(self):
         return f"{self.title} by {self.author.name}"
 
-    class Meta:
-        permissions = [
-            ("can_add_book", "Can add book"),
-            ("can_change_book", "Can change book"),
-            ("can_delete_book", "Can delete book"),
-        ]
+   
 
 
 class Library(models.Model):
