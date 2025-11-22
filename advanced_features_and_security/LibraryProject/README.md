@@ -6,5 +6,6 @@
 
 This project serves as an introduction to Django, focusing on setting up the development environment and understanding the project structure.
 
+#how i have added the permission part....
 
 

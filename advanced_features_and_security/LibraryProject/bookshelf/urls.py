@@ -8,7 +8,7 @@ urlpatterns = [
     path('logout/', views.logout_view, name='logout'),  # ADD THIS
     
     # Book URLs
-    path('books/', views.list_books, name='list_books'),
+    path('books/', views.book_lists, name='book_lists'),
     path('books/add/', views.add_book, name='add_book'),
     path('books/<int:pk>/edit/', views.edit_book, name='edit_book'),
     path('books/<int:pk>/delete/', views.delete_book, name='delete_book'),

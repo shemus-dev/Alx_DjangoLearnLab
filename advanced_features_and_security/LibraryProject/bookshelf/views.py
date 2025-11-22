@@ -19,7 +19,7 @@ def redirect_to_dashboard(user):
             return redirect('librarian_view')
         elif user.role == 'Member':
             return redirect('member_view')
-    return redirect('list_books')
+    return redirect('book_list')
 
 # ---------------- Authentication Views ----------------
 def register(request):
@@ -44,7 +44,7 @@ def register(request):
                     return redirect('librarian_view')
                 elif user.role == 'Member':
                     return redirect('member_view')
-            return redirect('list_books')
+            return redirect('book_list')
         else:
             messages.error(request, "Registration failed. Please correct the errors below.")
     else:
@@ -77,8 +77,8 @@ def login_view(request):
                     'Librarian': 'librarian_view', 
                     'Member': 'member_view'
                 }
-                return redirect(role_redirects.get(user.role, 'list_books'))
-            return redirect('list_books')
+                return redirect(role_redirects.get(user.role, 'book_list'))
+            return redirect('book_list')
         else:
             messages.error(request, "Invalid username or password.")
     else:
@@ -101,7 +101,7 @@ def add_book(request):
         if form.is_valid():
             form.save()
             messages.success(request, "Book added successfully.")
-            return redirect('list_books')
+            return redirect('book_list')
     else:
         form = BookForm()
     
@@ -117,7 +117,7 @@ def edit_book(request, pk):
         if form.is_valid():
             form.save()
             messages.success(request, "Book updated successfully.")
-            return redirect('list_books')
+            return redirect('book_list')
     else:
         form = BookForm(instance=book)
     
@@ -131,20 +131,20 @@ def delete_book(request, pk):
     if request.method == 'POST':
         book.delete()
         messages.success(request, "Book deleted successfully.")
-        return redirect('list_books')
+        return redirect('book_list')
     
     # CHANGED: relationship_app → bookshelf
     return render(request, 'bookshelf/book_confirm_delete.html', {'book': book})
 
 # ---------------- Book and Library Views ----------------
 @login_required
-def list_books(request):
+def book_list(request):
     books = Book.objects.all()
     
     # REASON: Filter out premium books if user doesn't have premium permission
     if not request.user.has_perm('bookshelf.can_view_premium_books'):
         books = books.filter(is_premium=False)
-    return render(request, 'bookshelf/list_books.html', {'books': books})
+    return render(request, 'bookshelf/book_list.html', {'books': books})
 
 # REASON: Class-based views need method_decorator for permission checks
 @method_decorator(login_required, name='dispatch')
