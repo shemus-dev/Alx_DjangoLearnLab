@@ -1,4 +1,4 @@
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.views.generic.detail import DetailView
 from django.contrib.auth.forms import UserCreationForm, AuthenticationForm
 from django.contrib.auth import login, logout
@@ -7,8 +7,14 @@ from .models import Book, Library
 from django.contrib.auth.decorators import user_passes_test, login_required
 from django.contrib.auth.decorators import permission_required
 from django.contrib.auth import get_user_model
-from .forms import BookForm
+from .forms import (BookForm, SafeSearchForm, BookSearchForm, CustomUserCreationForm,
+                   LibraryForm, BookBorrowForm, ContactForm, UserProfileForm,
+                   AdvancedBookFilterForm, ExampleForm  
+)
 from django.utils.decorators import method_decorator
+from django.db.models import Q
+from django.core.exceptions import PermissionDenied
+
 # --- ADD MISSING HELPER FUNCTION ---
 def redirect_to_dashboard(user):
     """Helper function to redirect users based on their role"""
@@ -24,12 +30,8 @@ def redirect_to_dashboard(user):
 # ---------------- Authentication Views ----------------
 def register(request):
     if request.method == 'POST':
-        # Get your CustomUser model
-        User = get_user_model()
-        
-        # Create form and explicitly set the model
-        form = UserCreationForm(request.POST)
-        form._meta.model = User  # ← EXPLICITLY set the model
+        # FIXED: Use CustomUserCreationForm instead of UserCreationForm
+        form = CustomUserCreationForm(request.POST)
         
         if form.is_valid():
             user = form.save()
@@ -48,11 +50,9 @@ def register(request):
         else:
             messages.error(request, "Registration failed. Please correct the errors below.")
     else:
-        User = get_user_model()
-        form = UserCreationForm()
-        form._meta.model = User  # ← Also set for GET requests
+        # FIXED: Use CustomUserCreationForm instead of UserCreationForm
+        form = CustomUserCreationForm()
     
-    # CHANGED: relationship_app → bookshelf
     return render(request, 'bookshelf/register.html', {'form': form})
 
 def login_view(request):
@@ -93,8 +93,7 @@ def logout_view(request):
     return redirect('login')
 
 # ---------------- Book Management ----------------
-# CHANGED: relationship_app → bookshelf
-@permission_required('bookshelf.can_create_book"', raise_exception=True)
+@permission_required('bookshelf.can_create_book', raise_exception=True)  # FIXED: Removed extra quote
 def add_book(request):
     if request.method == 'POST':
         form = BookForm(request.POST)
@@ -102,49 +101,88 @@ def add_book(request):
             form.save()
             messages.success(request, "Book added successfully.")
             return redirect('book_list')
+        else:
+            messages.error(request, "Please correct the errors below.")
     else:
         form = BookForm()
     
-    # CHANGED: relationship_app → bookshelf
     return render(request, 'bookshelf/book_form.html', {'form': form})
 
-# CHANGED: relationship_app → bookshelf
 @permission_required('bookshelf.can_change_book', raise_exception=True)
 def edit_book(request, pk):
-    book = Book.objects.get(pk=pk)
+    # SECURE: Use get_object_or_404 instead of direct get()
+    book = get_object_or_404(Book, pk=pk)
+    
     if request.method == 'POST':
         form = BookForm(request.POST, instance=book)
         if form.is_valid():
             form.save()
             messages.success(request, "Book updated successfully.")
             return redirect('book_list')
+        else:
+            messages.error(request, "Please correct the errors below.")
     else:
         form = BookForm(instance=book)
     
-    # CHANGED: relationship_app → bookshelf
     return render(request, 'bookshelf/book_form.html', {'form': form})
 
-# CHANGED: relationship_app → bookshelf
 @permission_required('bookshelf.can_delete_book', raise_exception=True)
 def delete_book(request, pk):
-    book = Book.objects.get(pk=pk)
+    # SECURE: Use get_object_or_404 instead of direct get()
+    book = get_object_or_404(Book, pk=pk)
+    
     if request.method == 'POST':
         book.delete()
         messages.success(request, "Book deleted successfully.")
         return redirect('book_list')
     
-    # CHANGED: relationship_app → bookshelf
     return render(request, 'bookshelf/book_confirm_delete.html', {'book': book})
 
 # ---------------- Book and Library Views ----------------
 @login_required
 def book_list(request):
+    # SECURE: Using Django ORM with safe filtering
     books = Book.objects.all()
     
     # REASON: Filter out premium books if user doesn't have premium permission
     if not request.user.has_perm('bookshelf.can_view_premium_books'):
         books = books.filter(is_premium=False)
-    return render(request, 'bookshelf/book_list.html', {'books': books})
+    
+    # ADDED: Safe search functionality
+    search_query = request.GET.get('q', '')
+    if search_query:
+        # SECURE: Use Django ORM with parameterized queries
+        books = books.filter(
+            Q(title__icontains=search_query) | 
+            Q(author__icontains=search_query) |
+            Q(isbn__icontains=search_query)
+        )
+    
+    return render(request, 'bookshelf/book_list.html', {
+        'books': books,
+        'search_query': search_query,
+    })
+
+# ADDED: Example view using ExampleForm
+@login_required
+def example_form_view(request):
+    """Example view demonstrating the use of ExampleForm"""
+    if request.method == 'POST':
+        form = ExampleForm(request.POST)
+        if form.is_valid():
+            name = form.cleaned_data['name']
+            email = form.cleaned_data['email']
+            message = form.cleaned_data['message']
+            
+            # Process the form data (in a real app, you might save to database, send email, etc.)
+            messages.success(request, f"Thank you {name}! Your message has been received.")
+            return redirect('book_list')
+        else:
+            messages.error(request, "Please correct the errors below.")
+    else:
+        form = ExampleForm()
+    
+    return render(request, 'bookshelf/example_form.html', {'form': form})
 
 # REASON: Class-based views need method_decorator for permission checks
 @method_decorator(login_required, name='dispatch')
@@ -180,17 +218,16 @@ def admin_view(request):
 @user_passes_test(is_librarian)
 @login_required
 def librarian_view(request):
-    # CHANGED: relationship_app → bookshelf
     return render(request, 'bookshelf/librarian_view.html')
 
 @user_passes_test(is_member)
 @login_required
 def member_view(request):
-    # CHANGED: relationship_app → bookshelf
+    # FIXED: Corrected Book.filter to Book.objects.filter
     if request.user.has_perm('bookshelf.can_view_premium_books'):
         books = Book.objects.all()
     else:
-        books = Book.filter(is_premium=False)
+        books = Book.objects.filter(is_premium=False)
 
     context = {'books': books}
     return render(request, 'bookshelf/member_view.html', context)
@@ -198,5 +235,4 @@ def member_view(request):
 # ADD THIS: User Profile View
 @login_required
 def user_profile(request):
-    # CHANGED: relationship_app → bookshelf
     return render(request, 'bookshelf/user_profile.html')

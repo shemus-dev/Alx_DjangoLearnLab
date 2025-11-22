@@ -78,6 +78,25 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
+MIDDLEWARE = [
+    # ...
+    'csp.middleware.CSPMiddleware',
+    # ...
+]
+# [citation:5][citation:8]
+
+CSP_DEFAULT_SRC = ("'none'",)  # By default, allow nothing
+CSP_SCRIPT_SRC = ("'self'",)   # Only allow scripts from our own domain
+CSP_STYLE_SRC = ("'self'",)    # Only allow styles from our own domain
+CSP_IMG_SRC = ("'self'",)      # Only allow images from our own domain
+CSP_FONT_SRC = ("'self'",)     # Only allow fonts from our own domain
+CSP_CONNECT_SRC = ("'self'",)  # Only allow AJAX/WebSockets to our domain
+CSP_OBJECT_SRC = ("'none'",)   # Block plugins like Flash
+CSP_BASE_URI = ("'self'",)     # Restrict the <base> tag
+CSP_FRAME_ANCESTORS = ("'self'",) # Protect against clickjacking
+CSP_FORM_ACTION = ("'self'",)  # Restrict where forms can be submitted
+# [citation:2][citation:8][citation:9]
+
 ROOT_URLCONF = 'LibraryProject.urls'
 
 AUTH_USER_MODEL = 'bookshelf.CustomUser'
