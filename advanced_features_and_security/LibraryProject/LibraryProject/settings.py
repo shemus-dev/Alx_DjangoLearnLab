@@ -23,7 +23,33 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-9+=wlv_ff10j&)zg0v8_ocrog#oxdiue)!ih1o7=-!y*&%4g5w'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('DEBUG', 'False').lower() == 'true'
+
+SECURE_BROWSER_XSS_FILTER = True
+X_FRAME_OPTIONS = 'DENY'
+SECURE_CONTENT_TYPE_NOSNIFF = True
+
+if not DEBUG:
+    # Cookie security over HTTPS
+    CSRF_COOKIE_SECURE = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_HTTPONLY = True
+    
+    # Additional production security settings
+    SECURE_SSL_REDIRECT = True  # Redirect all HTTP to HTTPS
+    SECURE_HSTS_SECONDS = 31536000  # 1 year HSTS
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    
+    # Configure allowed hosts for production
+    ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '').split(',')
+else:
+     # Development settings
+    ALLOWED_HOSTS = ['localhost', '127.0.0.1', '[::1]']
+    # HTTPS settings disabled for development
+    CSRF_COOKIE_SECURE = False
+    SESSION_COOKIE_SECURE = False
 
 ALLOWED_HOSTS = []
 
