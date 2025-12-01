@@ -1,5 +1,5 @@
 from django.shortcuts import render
-from rest_framework.generics.ListAPIView import ListAPIView 
+from rest_framework.generics import ListAPIView 
 from rest_framework import viewsets
 from .models import Book
 # Create your views here.
