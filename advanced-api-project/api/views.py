@@ -3,8 +3,7 @@ from rest_framework import generics , permissions
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from .models import Book
-from rest_framework import status
-from rest_framework import filters
+from rest_framework import status, filters
 from .serializer import BookSerializer
 
 
@@ -20,7 +19,7 @@ class BookListView(generics.ListAPIView):
 class BookCreateView(generics.CreateAPIView):
     queryset = Book.objects.all()
     serializer_class = BookSerializer
-    permissions_classes = [IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated] 
 
     def perform_create(self, serializer):
         serializer.save() #save object to database
@@ -65,6 +64,17 @@ class BookDeleteView(generics.DestroyAPIView):
     queryset = Book.objects.all()
     serializer_class = BookSerializer
 
-class BookDetailView(generics.RetrieveApiView):
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        book_title = instance.title  # Get title before deletion
+        self.perform_destroy(instance)
+        
+        return Response(
+            {"message": f"Book '{book_title}' successfully deleted"},
+            status=status.HTTP_200_OK
+        )
+
+class BookDetailView(generics.RetrieveAPIView):
     queryset = Book.objects.all()
     serializer_class = BookSerializer  
+    permission_classes = [permissions.AllowAny]
