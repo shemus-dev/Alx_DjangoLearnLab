@@ -1,3 +1,453 @@
 from django.test import TestCase
+# api/tests.py
+from django.test import TestCase
+from django.contrib.auth.models import User
+from rest_framework.test import APIClient
+from rest_framework import status
+from rest_framework.authtoken.models import Token
+from .models import Book
+import json
 
-# Create your tests here.
+
+class BookAPITestCase(TestCase):
+    """
+    Complete test suite for Book API
+    """
+    
+    def setUp(self):
+        """
+        Setup test data before each test runs
+        """
+        # Create test users
+        self.user = User.objects.create_user(
+            username='testuser',
+            password='testpass123',
+            email='test@example.com'
+        )
+        self.admin_user = User.objects.create_superuser(
+            username='admin',
+            password='adminpass123',
+            email='admin@example.com'
+        )
+        
+        # Create API clients
+        self.client = APIClient()  # Unauthenticated client
+        self.auth_client = APIClient()  # Authenticated client
+        self.auth_client.force_authenticate(user=self.user)
+        
+        # Create test books
+        self.book1 = Book.objects.create(
+            title='Django for Beginners',
+            author='John Smith',
+            published_year=2022,
+            description='Learn Django from scratch'
+        )
+        self.book2 = Book.objects.create(
+            title='Advanced Python Programming',
+            author='Jane Doe',
+            published_year=2021,
+            description='Advanced Python concepts'
+        )
+        self.book3 = Book.objects.create(
+            title='Django REST Framework Guide',
+            author='John Smith',
+            published_year=2023,
+            description='Master DRF'
+        )
+        self.book4 = Book.objects.create(
+            title='Python Cookbook',
+            author='Alex Johnson',
+            published_year=2020,
+            description='Python recipes'
+        )
+    
+    # ========================
+    # TEST 1: CRUD OPERATIONS
+    # ========================
+    
+    def test_list_books_unauthenticated(self):
+        """
+        Test that anyone can view book list
+        """
+        response = self.client.get('/api/books/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 4)
+        self.assertEqual(response.data[0]['title'], 'Django for Beginners')
+    
+    def test_retrieve_single_book_unauthenticated(self):
+        """
+        Test that anyone can view a single book
+        """
+        response = self.client.get(f'/api/books/{self.book1.id}/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['title'], 'Django for Beginners')
+        self.assertEqual(response.data['author'], 'John Smith')
+    
+    def test_create_book_unauthenticated_should_fail(self):
+        """
+        Test that unauthenticated users CANNOT create books
+        """
+        data = {
+            'title': 'New Book',
+            'author': 'Test Author',
+            'published_year': 2024,
+            'description': 'Test description'
+        }
+        response = self.client.post('/api/books/create/', data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+    
+    def test_create_book_authenticated(self):
+        """
+        Test that authenticated users CAN create books
+        """
+        data = {
+            'title': 'Authenticated Book',
+            'author': 'Auth Author',
+            'published_year': 2024,
+            'description': 'Created by authenticated user'
+        }
+        response = self.auth_client.post('/api/books/create/', data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['message'], 'Book successfully created')
+        self.assertEqual(response.data['book']['title'], 'Authenticated Book')
+        
+        # Verify book was actually created in database
+        self.assertEqual(Book.objects.count(), 5)
+        new_book = Book.objects.get(title='Authenticated Book')
+        self.assertEqual(new_book.author, 'Auth Author')
+    
+    def test_update_book_unauthenticated_should_fail(self):
+        """
+        Test that unauthenticated users CANNOT update books
+        """
+        data = {'title': 'Updated Title'}
+        response = self.client.patch(f'/api/books/{self.book1.id}/update/', data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+    
+    def test_update_book_authenticated(self):
+        """
+        Test that authenticated users CAN update books
+        """
+        data = {'title': 'Updated Django Book'}
+        response = self.auth_client.patch(f'/api/books/{self.book1.id}/update/', data, format='json')
+        
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['message'], 'Book successfully updated')
+        self.assertEqual(response.data['book']['title'], 'Updated Django Book')
+        
+        # Verify update in database
+        self.book1.refresh_from_db()
+        self.assertEqual(self.book1.title, 'Updated Django Book')
+    
+    def test_delete_book_unauthenticated_should_fail(self):
+        """
+        Test that unauthenticated users CANNOT delete books
+        """
+        response = self.client.delete(f'/api/books/{self.book1.id}/delete/')
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+    
+    def test_delete_book_authenticated(self):
+        """
+        Test that authenticated users CAN delete books
+        """
+        book_id = self.book1.id
+        response = self.auth_client.delete(f'/api/books/{book_id}/delete/')
+        
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('successfully deleted', response.data['message'])
+        
+        # Verify deletion from database
+        with self.assertRaises(Book.DoesNotExist):
+            Book.objects.get(id=book_id)
+        self.assertEqual(Book.objects.count(), 3)
+    
+    # ================================
+    # TEST 2: FILTERING & SEARCHING
+    # ================================
+    
+    def test_search_by_keyword(self):
+        """
+        Test search functionality with ?search= parameter
+        """
+        # Search for 'python' - should find book2 and book4
+        response = self.client.get('/api/books/?search=python')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2)
+        
+        titles = [book['title'] for book in response.data]
+        self.assertIn('Advanced Python Programming', titles)
+        self.assertIn('Python Cookbook', titles)
+    
+    def test_search_by_author_name(self):
+        """
+        Test search by author name
+        """
+        response = self.client.get('/api/books/?search=smith')
+        self.assertEqual(len(response.data), 2)  # John Smith wrote 2 books
+        
+        authors = [book['author'] for book in response.data]
+        self.assertTrue(all('Smith' in author for author in authors))
+    
+    def test_filter_by_title_contains(self):
+        """
+        Test filtering by title with icontains lookup
+        """
+        response = self.client.get('/api/books/?title__icontains=django')
+        self.assertEqual(len(response.data), 2)  # Two Django books
+        
+        titles = [book['title'].lower() for book in response.data]
+        self.assertTrue(all('django' in title for title in titles))
+    
+    def test_filter_by_exact_title(self):
+        """
+        Test filtering by exact title match
+        """
+        response = self.client.get('/api/books/?title__exact=Django for Beginners')
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['title'], 'Django for Beginners')
+    
+    def test_filter_by_author(self):
+        """
+        Test filtering by author
+        """
+        response = self.client.get('/api/books/?author__icontains=doe')
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['author'], 'Jane Doe')
+    
+    def test_filter_by_year_exact(self):
+        """
+        Test filtering by exact year
+        """
+        response = self.client.get('/api/books/?published_year=2022')
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['published_year'], 2022)
+        self.assertEqual(response.data[0]['title'], 'Django for Beginners')
+    
+    def test_filter_by_year_greater_than(self):
+        """
+        Test filtering by year range (greater than)
+        """
+        response = self.client.get('/api/books/?published_year__gte=2022')
+        self.assertEqual(len(response.data), 2)  # Books from 2022 and 2023
+        
+        years = [book['published_year'] for book in response.data]
+        self.assertTrue(all(year >= 2022 for year in years))
+    
+    def test_filter_by_year_range(self):
+        """
+        Test filtering by year range (between)
+        """
+        response = self.client.get('/api/books/?published_year__gte=2021&published_year__lte=2022')
+        self.assertEqual(len(response.data), 2)  # Books from 2021-2022
+        
+        years = [book['published_year'] for book in response.data]
+        self.assertTrue(all(2021 <= year <= 2022 for year in years))
+    
+    # ======================
+    # TEST 3: ORDERING
+    # ======================
+    
+    def test_order_by_title_ascending(self):
+        """
+        Test ordering by title (A-Z)
+        """
+        response = self.client.get('/api/books/?ordering=title')
+        
+        titles = [book['title'] for book in response.data]
+        sorted_titles = sorted(titles)
+        self.assertEqual(titles, sorted_titles)
+    
+    def test_order_by_title_descending(self):
+        """
+        Test ordering by title (Z-A)
+        """
+        response = self.client.get('/api/books/?ordering=-title')
+        
+        titles = [book['title'] for book in response.data]
+        sorted_titles = sorted(titles, reverse=True)
+        self.assertEqual(titles, sorted_titles)
+    
+    def test_order_by_year_descending(self):
+        """
+        Test ordering by year (newest first)
+        """
+        response = self.client.get('/api/books/?ordering=-published_year')
+        
+        years = [book['published_year'] for book in response.data]
+        sorted_years = sorted(years, reverse=True)
+        self.assertEqual(years, sorted_years)
+    
+    def test_order_by_author_then_title(self):
+        """
+        Test ordering by multiple fields
+        """
+        response = self.client.get('/api/books/?ordering=author,title')
+        
+        # Manually sort our test data
+        books = Book.objects.all().order_by('author', 'title')
+        expected_titles = [book.title for book in books]
+        
+        actual_titles = [book['title'] for book in response.data]
+        self.assertEqual(actual_titles, expected_titles)
+    
+    # ============================
+    # TEST 4: COMBINED FILTERS
+    # ============================
+    
+    def test_combined_search_and_filter(self):
+        """
+        Test combining search with field filters
+        """
+        response = self.client.get('/api/books/?search=django&published_year__gte=2022')
+        
+        # Should return Django books from 2022 or later
+        self.assertEqual(len(response.data), 2)
+        
+        for book in response.data:
+            title = book['title'].lower()
+            self.assertIn('django', title)
+            self.assertGreaterEqual(book['published_year'], 2022)
+    
+    def test_combined_filter_and_order(self):
+        """
+        Test combining filter with ordering
+        """
+        response = self.client.get('/api/books/?author__icontains=smith&ordering=-published_year')
+        
+        # Should return Smith's books, newest first
+        self.assertEqual(len(response.data), 2)
+        
+        # Check ordering (should be 2023, then 2022)
+        self.assertEqual(response.data[0]['published_year'], 2023)
+        self.assertEqual(response.data[1]['published_year'], 2022)
+        
+        # Check all are Smith's books
+        for book in response.data:
+            self.assertIn('Smith', book['author'])
+    
+    def test_multiple_filters(self):
+        """
+        Test multiple filters combined
+        """
+        response = self.client.get('/api/books/?title__icontains=django&author__icontains=smith&published_year=2023')
+        
+        # Should return only the 2023 Django book by Smith
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['title'], 'Django REST Framework Guide')
+        self.assertEqual(response.data[0]['author'], 'John Smith')
+        self.assertEqual(response.data[0]['published_year'], 2023)
+    
+    # =================================
+    # TEST 5: EDGE CASES & ERROR CASES
+    # =================================
+    
+    def test_search_no_results(self):
+        """
+        Test search that returns no results
+        """
+        response = self.client.get('/api/books/?search=nonexistent')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)  # Empty array, not error
+    
+    def test_filter_no_results(self):
+        """
+        Test filter that returns no results
+        """
+        response = self.client.get('/api/books/?published_year=2050')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
+    
+    def test_invalid_book_id(self):
+        """
+        Test retrieving non-existent book
+        """
+        response = self.client.get('/api/books/9999/')  # Non-existent ID
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+    
+    def test_create_book_invalid_data(self):
+        """
+        Test creating book with invalid data
+        """
+        data = {
+            'title': '',  # Empty title should fail
+            'author': 'Test',
+            'published_year': 'not-a-number'  # Invalid year
+        }
+        response = self.auth_client.post('/api/books/create/', data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('title', response.data)  # Should have validation errors
+    
+    def test_update_book_invalid_data(self):
+        """
+        Test updating book with invalid data
+        """
+        data = {'published_year': 'invalid-year'}
+        response = self.auth_client.patch(f'/api/books/{self.book1.id}/update/', data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+    
+    # =================================
+    # TEST 6: PERMISSIONS WITH TOKENS
+    # =================================
+    
+    def test_token_authentication(self):
+        """
+        Test token-based authentication
+        """
+        # Create token for user
+        token = Token.objects.create(user=self.user)
+        
+        # Create client with token authentication
+        token_client = APIClient()
+        token_client.credentials(HTTP_AUTHORIZATION=f'Token {token.key}')
+        
+        # Test creating book with token
+        data = {
+            'title': 'Token Auth Book',
+            'author': 'Token Author',
+            'published_year': 2024
+        }
+        response = token_client.post('/api/books/create/', data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+    
+    def test_invalid_token(self):
+        """
+        Test with invalid token
+        """
+        invalid_client = APIClient()
+        invalid_client.credentials(HTTP_AUTHORIZATION='Token invalid-token-123')
+        
+        response = invalid_client.post('/api/books/create/', {}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+class BookModelTest(TestCase):
+    """
+    Tests for the Book model itself
+    """
+    
+    def test_create_book_model(self):
+        """
+        Test creating a Book model instance
+        """
+        book = Book.objects.create(
+            title='Test Book',
+            author='Test Author',
+            published_year=2024,
+            description='Test description'
+        )
+        
+        self.assertEqual(book.title, 'Test Book')
+        self.assertEqual(book.author, 'Test Author')
+        self.assertEqual(book.published_year, 2024)
+        self.assertTrue(book.created_at)  # Auto-generated field
+    
+    def test_string_representation(self):
+        """
+        Test the string representation of Book model
+        """
+        book = Book.objects.create(
+            title='Test Book',
+            author='Test Author',
+            published_year=2024
+        )
+        self.assertEqual(str(book), 'Test Book by Test Author (2024)')
