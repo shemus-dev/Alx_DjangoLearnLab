@@ -26,7 +26,7 @@ class BookListView(generics.ListAPIView):
     }
     
     # Search fields - works with ?search=query
-    search_fields = ['title', 'author__name']
+    search_fields = ['title', 'author__name', 'publication_year']
     
     # Define which fields can be used for sorting
     ordering_fields = ['title', 'published_year', 'author']  # Use actual field name
