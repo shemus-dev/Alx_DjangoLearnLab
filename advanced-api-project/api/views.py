@@ -1,42 +1,62 @@
 from django.shortcuts import render
-from rest_framework import generics 
-from rest_framework.permissions import IsAuthenticatedOrReadOnly, IsAuthenticated, AllowAny, IsAuthenticatedOrReadOnly
+from rest_framework import generics, permissions, status, filters
 from rest_framework.response import Response
+from django_filters import rest_framework as django_filters
 from .models import Book
-from rest_framework import status, filters
 from .serializer import BookSerializer
 
 
-#listview for all books
+# ListView for all books
 class BookListView(generics.ListAPIView):
     queryset = Book.objects.all()
     serializer_class = BookSerializer
-    filter_backends = [filters.SearchFilter]
-    search_fields = ['title', 'author__name']  # Enables searching by title and author's name
     
+    
+    filter_backends = [
+        django_filters.DjangoFilterBackend,  #  field filtering
+        filters.SearchFilter,                 #  search
+        filters.OrderingFilter,               #  sorting
+    ]
+    
+    # fields can be filtered
+    filterset_fields = {
+        'title': ['exact', 'icontains'],
+        'author': ['exact', 'icontains'],
+        'published_year': ['exact', 'gte', 'lte'],  # Use your actual field name
+    }
+    
+    # Search fields - works with ?search=query
+    search_fields = ['title', 'author__name']
+    
+    # Define which fields can be used for sorting
+    ordering_fields = ['title', 'published_year', 'author']  # Use actual field name
+    ordering = ['title']  # Default ordering
+    
+    # Allow anyone to view
+    permission_classes = [permissions.AllowAny]
+
 
 # CreateView: Adds a new book
 class BookCreateView(generics.CreateAPIView):
     queryset = Book.objects.all()
     serializer_class = BookSerializer
-    permission_classes = [permissions.IsAuthenticated] 
+    permission_classes = [permissions.IsAuthenticated]
 
     def perform_create(self, serializer):
-        serializer.save() #save object to database
+        serializer.save()  # Save object to database
 
     def create(self, request, *args, **kwargs):
-        # This overrides the default method to customize response or validation
         serializer = self.get_serializer(data=request.data)
-        #data=request.data: Passes the incoming POST/PUT data to the serializer
-        serializer.is_valid(raise_exception=True)  # Validates data according to serializer
+        serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
         headers = self.get_success_headers(serializer.data)
-        # Customize the response
+        
         return Response(
             {"message": "Book successfully created", "book": serializer.data},
             status=status.HTTP_201_CREATED,
             headers=headers
         )
+
 
 # UpdateView: Modifies an existing book
 class BookUpdateView(generics.UpdateAPIView):
@@ -48,25 +68,27 @@ class BookUpdateView(generics.UpdateAPIView):
         serializer.save()
 
     def update(self, request, *args, **kwargs):
-        # Customizing validation and response
-        partial = kwargs.pop('partial', False)  # Allow PATCH (partial update) if True
-        instance = self.get_object()  # Retrieve the object to update
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
-        serializer.is_valid(raise_exception=True) #Validates incoming data; DRF automatically handles errors.
+        serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
+        
         return Response(
             {"message": "Book successfully updated", "book": serializer.data},
             status=status.HTTP_200_OK
         )
 
+
 # DeleteView: Removes a book
 class BookDeleteView(generics.DestroyAPIView):
     queryset = Book.objects.all()
     serializer_class = BookSerializer
+    permission_classes = [permissions.IsAuthenticated] 
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
-        book_title = instance.title  # Get title before deletion
+        book_title = instance.title
         self.perform_destroy(instance)
         
         return Response(
@@ -74,7 +96,8 @@ class BookDeleteView(generics.DestroyAPIView):
             status=status.HTTP_200_OK
         )
 
+
 class BookDetailView(generics.RetrieveAPIView):
     queryset = Book.objects.all()
-    serializer_class = BookSerializer  
+    serializer_class = BookSerializer
     permission_classes = [permissions.AllowAny]
