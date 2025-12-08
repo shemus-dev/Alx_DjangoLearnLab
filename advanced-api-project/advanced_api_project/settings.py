@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     'advanced_api_project',
     'rest_framework.authtoken', 
     'rest_framework',
+    'api',
 ]
 
 REST_FRAMEWORK = {

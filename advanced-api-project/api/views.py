@@ -3,7 +3,7 @@ from rest_framework import generics, permissions, status, filters
 from rest_framework.response import Response
 from django_filters import rest_framework as django_filters
 from .models import Book
-from .serializer import BookSerializer
+from .serializers import BookSerializer
 
 
 # ListView for all books
