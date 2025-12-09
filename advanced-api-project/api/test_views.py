@@ -6,6 +6,7 @@ from rest_framework.test import APIClient
 from rest_framework import status
 from rest_framework.authtoken.models import Token
 from .models import Book
+from rest_framework.test import APITestCase
 import json
 
 
@@ -451,3 +452,19 @@ class BookModelTest(TestCase):
             published_year=2024
         )
         self.assertEqual(str(book), 'Test Book by Test Author (2024)')
+
+class TestBookViews(APITestCase):
+
+    def setUp(self):
+        # create test user
+        self.user = User.objects.create_user(
+            username="testuser",
+            password="testpass123"
+        )
+
+        # login the test user
+        self.client.login(username="testuser", password="testpass123")
+
+    def test_book_list(self):
+        response = self.client.get("/api/books/")
+        self.assertEqual(response.status_code, 200)
