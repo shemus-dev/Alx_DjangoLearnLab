@@ -1,0 +1,45 @@
+# Blog Application
+
+## Features
+- View all blog posts
+- View individual posts
+- Create posts (authenticated users only)
+- Edit and delete posts (author only)
+
+## Permissions
+- Anyone can read posts
+- Only logged-in users can create posts
+- Only post authors can edit or delete posts
+
+## Tech Stack
+- Django
+- Class-Based Views
+- ModelForms
+- Django Authentication
+
+## Notes
+- Author is automatically assigned from the logged-in user
+- Unauthorized access returns a 403 Forbidden response
+
+## Comment System
+
+### Features
+- Users can view comments on blog posts
+- Authenticated users can add comments
+- Only the comment author can edit or delete their comment
+
+### URLs
+- Add comment: `/posts/<post_id>/comments/new/`
+- Edit comment: `/comments/<comment_id>/edit/`
+- Delete comment: `/comments/<comment_id>/delete/`
+
+### Permissions
+- Anyone can view comments
+- Only logged-in users can add comments
+- Only the comment author can edit or delete comments
+
+### Data Handling
+- Comment author is set automatically from the logged-in user
+- Comment is always linked to a specific post
+- Deleting a post deletes its related comments
+

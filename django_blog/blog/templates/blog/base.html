@@ -1,0 +1,10 @@
+<form method="GET" action="{% url 'search' %}" class="d-flex">
+    <input 
+        type="search" 
+        name="q" 
+        placeholder="Search posts..." 
+        value="{{ request.GET.q }}"
+        required
+    >
+    <button type="submit">Search</button>
+</form>
