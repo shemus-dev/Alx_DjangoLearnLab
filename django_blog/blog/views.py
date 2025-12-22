@@ -9,6 +9,10 @@ from .forms import PostForm, CommentForm
 from django.shortcuts import get_object_or_404, redirect
 from django.db.models import Q
 from taggit.models import Tag
+from django.urls import reverse
+from django.core.exceptions import PermissionDenied
+
+
 
 
 
@@ -97,13 +101,54 @@ def add_comment(request, pk):
 
     return redirect('post-detail', pk=post.pk)
 
-class CommentUpdateView(LoginRequiredMixin, UserPassesTestMixin, UpdateView):
+class CommentListView(ListView):
     model = Comment
-    form_class = CommentForm
-    template_name = 'blog/comment_form.html'
+    template_name = 'comments/comment_list.html'
+    context_object_name = 'comments'
+
+    def get_queryset(self):
+        post_id = self.kwargs['post_id']
+        return Comment.objects.filter(post_id=post_id)
+    
+class CommentCreateView(LoginRequiredMixin, CreateView):
+    model = Comment
+    fields = ['content']
+    template_name = 'comments/comment_form.html'
+
+    def form_valid(self, form):
+        form.instance.author = self.request.user
+        form.instance.post_id = self.kwargs['post_id']
+        return super().form_valid(form)
 
     def get_success_url(self):
-        return self.object.post.get_absolute_url()
+        return reverse('post-detail', kwargs={'pk': self.kwargs['post_id']})
+
+class CommentUpdateView(LoginRequiredMixin, UpdateView):
+    model = Comment
+    fields = ['content']
+    template_name = 'comments/comment_form.html'
+
+    def dispatch(self, request, *args, **kwargs):
+        comment = self.get_object()
+        if comment.author != request.user:
+            raise PermissionDenied
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_success_url(self):
+        return reverse('post-detail', kwargs={'pk': self.object.post.id})
+    
+class CommentDeleteView(LoginRequiredMixin, DeleteView):
+    model = Comment
+    template_name = 'comments/comment_confirm_delete.html'
+
+    def dispatch(self, request, *args, **kwargs):
+        comment = self.get_object()
+        if comment.author != request.user:
+            raise PermissionDenied
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_success_url(self):
+        return reverse('post-detail', kwargs={'pk': self.object.post.id})
     
 
 def search_posts(request):
